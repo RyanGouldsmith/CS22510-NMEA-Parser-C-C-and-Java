@@ -1,0 +1,187 @@
+import Models.*;
+
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.*;
+import java.util.LinkedList;
+
+/**
+ * A class where the file is inputted and then parsed into the Models.Model.java class.
+ * @Author Ryan Gouldsmith
+ * @version 0.2
+ * @since  28/02/14.
+ */
+public class InputFileHandler {
+    /*
+       * CONSTANTS FOR THE FILE NAMES
+       * they're never going to change so, just use these.
+     */
+    private String GPSONE;
+    private String GPSTWO;
+    private BufferedReader filereader;
+    private BufferedReader fileReaderTwo;
+    private GSV gsv;
+    private GGA gga, gga_two;
+    private OutputFileHandler output;
+    private Model model;
+    private SpeakParser parserValueOne;
+    private SpeakParser parserValueTwo;
+    private String line2;
+    private boolean fix;
+    private int numOfGSVSent;
+    private String[] arrayOfGsv;
+    private String line_temp;
+    /**
+     * Default Constructor
+     */
+    public InputFileHandler(String filename1, String filename2) throws IOException, ParserConfigurationException {
+        parserValueOne = new SpeakParser();
+        parserValueTwo = new SpeakParser();
+        this.GPSONE= filename1;
+        this.GPSTWO = filename2;
+        readFile();
+    }
+
+    /**
+     * This is a read file function, it reads in the the first file, creates a model.
+     * It checks for the correct sentence spek, and loops over the second file method
+     */
+    private void readFile() throws FileNotFoundException, IOException, ParserConfigurationException{
+        filereader = new BufferedReader(new FileReader(this.GPSONE));
+        this.model = new Model();
+        String line;
+        boolean found = false;
+        boolean isOnly;
+        output = new OutputFileHandler(this.model);
+        while(!found){
+            line = filereader.readLine();
+            if (line == null){
+                break;
+            }
+            String[] file_one = line.split(",");
+            //Matches the GPGGA sentence
+            if (line.startsWith("$GPGGA")){
+                //creates a new object and parses the data
+                gga = new GGA(file_one);
+                if(readFile2(gga)){
+                    if(fix){
+                        workOutOffSet();
+                        model.getLatValues().add(gga.getLat());
+                        model.getLngValues().add(gga.getLongnitude());
+                        model.getTimeValue().add(gga.getTimeTaken());
+                       output.setModel(model);
+                       // output.write("foo.gpx");
+                        //see which has a better position
+               	   }
+                    else if (!fix){
+                        double lat, lng;
+                        workOutOffSet();
+                        lat = getLastLatOffSet();
+                        lng = getLastLngOffSet();
+                        gga_two.setLongnitude(gga_two.getLongnitude() - lng);
+                        gga_two.setLat(gga_two.getLat() - lat);
+                        model.getLatValues().add(gga_two.getLat());
+                        model.getLngValues().add(gga_two.getLongnitude());
+                        model.getTimeValue().add(gga_two.getTimeTaken());
+                        output.setModel(model);
+                    }
+                }
+                }
+
+            }
+            if (line.startsWith("$GPGSV")){
+                //work out the number of sentences
+                arrayOfGsv = new String[Integer.parseInt(file_one[1])];
+                line_temp = line;
+                for (int i = 0; i < Integer.parseInt(file_one[1]); i++){
+                    if(line.startsWith("$GPGSV")){
+                        arrayOfGsv[i] = line_temp;
+                    }
+                    line_temp = filereader.readLine();
+                }
+                gsv = new GSV(arrayOfGsv);
+                fix = gsv.isItAGoodFix();
+            }
+        }
+        output.write("foo.gpx");
+
+
+    }
+    private double getLastLatOffSet(){
+        return model.getOffsetLatValue();
+    }
+    private double getLastLngOffSet(){
+        return model.getOffsetLngValue();
+    }
+
+    /**
+     * Loops over the second file, trying to find a time stamp equalling the same value
+     * @param gga the sentence from file one
+     * @return a boolean value to whether it's found it or not.
+     * @throws IOException
+     */
+    private boolean readFile2(GGA gga) throws IOException {
+        fileReaderTwo = new BufferedReader(new FileReader(this.GPSTWO));
+        boolean found = false;
+        while (!found){
+            this.line2 = fileReaderTwo.readLine();
+            if (line2 == null){
+                return false;
+            }else {
+                String[] file_two = line2.split(",");
+                if (line2.startsWith("$GPGGA")){
+                    gga_two = new GGA(file_two);
+                    addValuesToParser(gga, gga_two);
+                    if ((int)gga.getTime() == (int)gga_two.getTime()){
+                        found = true;
+                    }
+                }
+                if (line2.startsWith("$GPGSV")){
+                    //work out the number of sentences
+                    arrayOfGsv = new String[Integer.parseInt(file_two[1])];
+                    line_temp = line2;
+                    for (int i = 0; i < Integer.parseInt(file_two[1]); i++){
+                        if(line2.startsWith("$GPGSV")){
+                            arrayOfGsv[i] = line_temp;
+                        }
+                        line_temp = filereader.readLine();
+                    }
+                    gsv = new GSV(arrayOfGsv);
+                    fix = gsv.isItAGoodFix();
+                }
+            }
+        }
+        return found;
+    }
+     /**
+     * Sets the Time, lat and long values into the parser. Each file has a separate instance
+     * @param gga is file ones String
+     * @param second is file twos String
+     */
+    private void addValuesToParser(GGA gga, GGA second){
+        parserValueOne.setTime(gga.getTimeTaken());
+        parserValueTwo.setTime(second.getTimeTaken());
+        parserValueOne.setLat(gga.getLat());
+        parserValueOne.setLng(gga.getLongnitude());
+        parserValueTwo.setLat(second.getLat());
+        parserValueTwo.setLng(second.getLongnitude());
+    }
+
+    /**
+     * Works out the offset of the lat and long values
+     * Sets these to variables in the Model
+     */
+    private void workOutOffSet(){
+        if (parserValueOne.getLat() <= parserValueTwo.getLat()){
+            model.setOffsetLatValue((parserValueTwo.getLat() - parserValueOne.getLat()));
+        } else if(parserValueTwo.getLat() <= parserValueOne.getLat()){
+            model.setOffsetLatValue((parserValueOne.getLat() - parserValueTwo.getLat()));
+        }
+        if (parserValueOne.getLng() <= parserValueTwo.getLng()){
+            model.setOffsetLngValue((parserValueTwo.getLng() - parserValueOne.getLng()));
+        } else if (parserValueTwo.getLng() <= parserValueOne.getLng()){
+            //one from twoo
+            model.setOffsetLngValue((parserValueOne.getLng() - parserValueTwo.getLng()));
+        }
+    }
+
+}

@@ -1,0 +1,99 @@
+#include <stdio.h>
+#include "model.h"
+#include "GGA.h"
+#include <string.h>
+#include <stdlib.h>
+#include "Parser.h"
+/*!
+ * \file Exporter.c
+ *
+ * \author Ryan Gouldsmih
+ * \date 28th March
+ *
+ * This stores the information for the exporter, with a single method called write_to_xml which, writes the model to the XML file.
+ */
+//sets the root node
+char* set_root_node(void);
+char* close_root_node(void);
+//sets the way point node, with parser pointer as a paam
+char* wpt_node(Parser*);
+char* closing_wpt(void);
+/**
+* This write the information from the Parser to the XML file
+* It calls the root node and waypoint functions in order to complete this operation
+* @param *model is the current Parser value
+*/
+void write_to_file(Parser *model)
+{
+    FILE *file;
+    //creates and appends to the c.gps file
+    file = fopen("c.gps", "a+");
+    //sets the values to the file
+    fprintf(file, "%s", set_root_node());
+    fprintf(file, "%s", wpt_node(model));
+    fprintf(file, "%s", closing_wpt());
+    fprintf(file, "%s", close_root_node());
+    fclose(file);
+}
+/**
+* Sets the root node with all the information represented as a char *
+* @returns the tag representing the root node
+*/
+char* set_root_node()
+{
+    return "<GPX version='1.0' creator='GPSFix - Ryan Gouldsmith (ryg1@aber.ac.uk)' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xmlns='http://www.topografix.com/GPX/1/0' xsi:schemaLocation='http://www.topografix.com/GPX/1/0 http://www.topografix.com/GPX/1/0/gpx.xsd'>";
+}
+/**
+* Sets the closing node with all the information represented as a char *
+* @returns the tag representing the closing value to the roo node
+*/
+char* close_root_node()
+{
+    return  "</GPX>";
+}
+/**
+* This sets the way point element
+* This is where all the information about the latitude and longitude is stored from the model
+* @param is a pointer to the current Parser being used
+* returns the combined sentence for a waypoint tag
+*/
+char* wpt_node(Parser *foo)
+{
+    unsigned int i=0;
+    //loops over the array
+    for (i = 0; i < sizeof(foo->lat_arr); i++)
+    {
+        //creates the wpt tag
+        char *wpt = "<wpt ";
+        char *close = "/>";
+        char lat[30];
+        char lng[30];
+        //creates a char array
+        char *sentence = malloc(sizeof(char) * 100);
+        //copies it over temporarily
+        strcpy(sentence, wpt);
+        //concat the lat value with a char* representation
+        strcat(lat, "lat= ");
+        //concat the longitude value with a char* representation
+        strcat(lng, "lng= ");
+        /*
+        sprintf(lat_val, "%f", foo->lat_arr[i]);
+        sprintf(lng_val, "%f", foo->lng_arr[i]);
+        strcat(lat, lat_val);
+        strcat(lng, lng_val);
+        strcat(sentence, lat);
+        strcat(sentence, lng);
+        strcat(sentence, close);
+        return sentence;
+        */
+    }
+    return NULL;
+}
+/**
+* Sets the closing waypoint tag with all the information represented as a char *
+* @returns the tag representing the closing way point tag
+*/
+char* closing_wpt()
+{
+    return "</wpt";
+}
